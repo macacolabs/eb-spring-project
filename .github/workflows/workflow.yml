@@ -1,4 +1,4 @@
-name: Build and Push Spring Boot Docker Image to aws
+name: Build and Deploy Spring Boot to AWS
 
 on:
   push:
@@ -7,18 +7,24 @@ on:
 permissions:
   contents: read
 
+env:
+  AWS_REGION: ap-northeast-2
+  ECR_REPOSITORY: myapp-dev-spring-api
+
 jobs:
   docker-build-push:
     runs-on: ubuntu-latest
+
     steps:
-      - uses: actions/checkout@v6
+      - name: Checkout
+        uses: actions/checkout@v6
 
       - name: Set up Java
         uses: actions/setup-java@v5
         with:
-          distribution: 'temurin'
+          distribution: temurin
           java-version: '21'
-          cache: 'gradle'
+          cache: gradle
 
       - name: Grant execute permission to gradlew
         run: chmod +x ./gradlew
@@ -33,47 +39,55 @@ jobs:
       - name: Build with Gradle
         run: ./gradlew clean build --no-daemon
 
-      - name: Log in to DockerHub
-        env:
-          DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
-          DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
-        run: echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin
-
-      - name: Build and Push Docker Image
-        env:
-          DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
-          IMAGE_TAG: ${{ github.sha }}
-        run: |
-          docker build -t "$DOCKER_USERNAME/springboot-api:$IMAGE_TAG" .
-          docker push "$DOCKER_USERNAME/springboot-api:$IMAGE_TAG"
-
-      - name: Create Dockerrun.aws.json
-        env:
-          DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
-          IMAGE_TAG: ${{ github.sha }}
-        run: |
-          echo "{
-            \"AWSEBDockerrunVersion\": \"1\",
-            \"Image\": {
-              \"Name\": \"$DOCKER_USERNAME/springboot-api:$IMAGE_TAG\",
-              \"Update\": \"true\"
-            },
-            \"Ports\": [
-              { \"ContainerPort\": \"8080\" }
-            ]
-          }" > Dockerrun.aws.json
-
-
-      - name: Zip for deployment
-        run : zip -r app.zip Dockerrun.aws.json
-
-      - uses: aws-actions/configure-aws-credentials@v6
+      # AWS 인증
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v6
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ secrets.AWS_REGION }}
+          aws-region: ${{ env.AWS_REGION }}
 
-      - name: Upload to S3 and deploy to EB
+      # ECR 로그인
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      # Docker 이미지 빌드 + ECR Push
+      - name: Build and Push Docker Image to ECR
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          IMAGE_URI=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+
+          docker build -t "$IMAGE_URI" .
+          docker push "$IMAGE_URI"
+
+          echo "IMAGE_URI=$IMAGE_URI" >> $GITHUB_ENV
+
+      # Elastic Beanstalk이 ECR 이미지를 Pull하도록 Dockerrun 생성
+      - name: Create Dockerrun.aws.json
+        run: |
+          cat > Dockerrun.aws.json <<EOF
+          {
+            "AWSEBDockerrunVersion": "1",
+            "Image": {
+              "Name": "$IMAGE_URI",
+              "Update": "true"
+            },
+            "Ports": [
+              {
+                "ContainerPort": "8080"
+              }
+            ]
+          }
+          EOF
+
+      - name: Zip for deployment
+        run: zip app.zip Dockerrun.aws.json
+
+      # Dockerrun 배포 번들을 S3에 업로드하고 EB 버전 생성
+      - name: Upload to S3 and Deploy to Elastic Beanstalk
         env:
           S3_BUCKET_NAME: ${{ secrets.S3_BUCKET_NAME }}
           EB_APP_NAME: ${{ secrets.EB_APP_NAME }}
