@@ -1,0 +1,19 @@
+spring:
+  application:
+    name: springboot-restapi
+  profiles:
+    include: dev
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      probes:
+        enabled: true
+      show-details: never
+
+agent:
+  base-url: ${AGENT_BASE_URL:http://localhost:8000}
