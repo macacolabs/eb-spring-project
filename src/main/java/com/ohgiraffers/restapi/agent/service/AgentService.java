@@ -68,7 +68,7 @@ public class AgentService {
         }
 
         HttpRequest httpRequest = HttpRequest.newBuilder()
-                .uri(URI.create(agentBaseUrl + "/agent/v1/recommendations"))
+                .uri(URI.create(agentBaseUrl + "/recommendations"))
                 .header("Content-Type", MediaType.APPLICATION_JSON_VALUE)
                 .POST(HttpRequest.BodyPublishers.ofByteArray(requestBody))
                 .build();
@@ -90,7 +90,7 @@ public class AgentService {
     }
 
     public AgentHealthResponse health() {
-        return restClient.get().uri("/agent/v1/health")
+        return restClient.get().uri("/health")
                 .retrieve().body(AgentHealthResponse.class);
     }
 }
