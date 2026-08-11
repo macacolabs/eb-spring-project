@@ -93,7 +93,6 @@ public class SecurityConfig {
         config.addAllowedOrigin("http://localhost:3001");
         config.addAllowedOrigin("http://localhost:5173");
         config.addAllowedOrigin("http://bucket-seungje.s3-website.ap-northeast-2.amazonaws.com");
-        config.addAllowedOrigin("https://api.naengpa.com");
         config.addAllowedOrigin("https://www.naengpa.com");
         config.addAllowedOrigin("https://naengpa.com");
         config.addAllowedHeader("*");
