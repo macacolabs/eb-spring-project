@@ -11,7 +11,7 @@ import org.springframework.web.client.RestClientException;
 import lombok.extern.slf4j.Slf4j;
 
 @RestController
-@RequestMapping("/agent")
+@RequestMapping("/api/v1/agent")
 @Slf4j
 public class AgentController {
     private final AgentService agentService;
